@@ -8,6 +8,7 @@ import os
 import uuid
 import logging
 import threading
+import asyncio  # Yangi qo'shildi
 from http.server import BaseHTTPRequestHandler, HTTPServer
 
 from telegram import (
@@ -51,7 +52,7 @@ MOD_LIST_CHUNK = 2
 PENDING_TOPUPS: dict = {}
 
 
-# --- RENDER UCHUN MAJBURIY HTTP SERVER (WEB SERVICE REJIMI UCHUN) ---
+# --- HTTP SERVER (RENDER UCHUN) ---
 class HealthCheckHandler(BaseHTTPRequestHandler):
     def do_GET(self):
         self.send_response(200)
@@ -60,14 +61,14 @@ class HealthCheckHandler(BaseHTTPRequestHandler):
         self.wfile.write(b"Bot ishlayapti!")
 
     def log_message(self, format, *args):
-        return  # Loglarni ortiqcha yozuvlar bilan to'ldirmaslik uchun
+        return  
 
 def run_health_server():
     port = int(os.environ.get("PORT", 10000))
     server = HTTPServer(("0.0.0.0", port), HealthCheckHandler)
     logger.info(f"Render health-check serveri {port}-portda ishga tushdi.")
     server.serve_forever()
-# -----------------------------------------------------------------
+# ----------------------------------
 
 
 def _chunk(items, size):
@@ -318,16 +319,16 @@ async def text_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
     )
 
 
-def main() -> None:
+# Python 3.14 xatosini to'g'rilash uchun main funksiyasini asinxron qildik
+async def main_async() -> None:
     token = os.environ.get("BOT_TOKEN") or DEFAULT_BOT_TOKEN
     if not token:
         raise RuntimeError("Bot tokeni topilmadi.")
 
-    # 1. Render talab qilayotgan portni alohida oqimda (Thread) ochamiz
+    # Render HTTP serverini alohida oqimda boshlash
     server_thread = threading.Thread(target=run_health_server, daemon=True)
     server_thread.start()
 
-    # 2. Telegram botni standart polling usulida boshlaymiz
     application = Application.builder().token(token).build()
 
     application.add_handler(CommandHandler("start", start))
@@ -336,8 +337,19 @@ def main() -> None:
     application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, text_handler))
 
     logger.info("Bot ishga tushmoqda...")
-    application.run_polling(allowed_updates=Update.ALL_TYPES)
+    
+    # run_polling() o'rniga zamonaviy initialize/start/updater usulidan foydalanamiz
+    await application.initialize()
+    await application.start()
+    await application.updater.start_polling(allowed_updates=Update.ALL_TYPES)
+    
+    logger.info("Bot to'liq ishga tushdi va xabarlarni kutyapti.")
+    
+    # Bot to'xtab qolmasligi uchun cheksiz sikl
+    while True:
+        await asyncio.sleep(3600)
 
 
 if __name__ == "__main__":
-    main()
+    # Python 3.14 da asinxron dasturni to'g'ri ishga tushirish
+    asyncio.run(main_async())
