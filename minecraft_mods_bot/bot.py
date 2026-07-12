@@ -7,6 +7,8 @@ Minecraft Modlari Telegram Boti
 import os
 import uuid
 import logging
+import threading
+from http.server import BaseHTTPRequestHandler, HTTPServer
 
 from telegram import (
     InlineKeyboardButton,
@@ -24,7 +26,6 @@ from telegram.ext import (
     filters,
 )
 
-# Loyihangizdagi kerakli modullar
 from mods_data import MODS
 import balances
 
@@ -34,11 +35,10 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-# Siz yuborgan logdagi eski token:
 DEFAULT_BOT_TOKEN = "8925751397:AAE0hdfPDERIdZl0gnVwKN2jNaYpX7G3d2E"
 
 ADMIN_ID = 8642218989
-MOD_PRICE = 5000  # har bir mod ma'lumotini ko'rish narxi (so'mda)
+MOD_PRICE = 5000  
 
 BACK_BUTTON = "⬅️ Orqaga"
 ALL_MODS_BUTTON = "📋 Barcha modlar"
@@ -49,6 +49,25 @@ MAIN_MENU_CHUNK = 1
 MOD_LIST_CHUNK = 2
 
 PENDING_TOPUPS: dict = {}
+
+
+# --- RENDER UCHUN MAJBURIY HTTP SERVER (WEB SERVICE REJIMI UCHUN) ---
+class HealthCheckHandler(BaseHTTPRequestHandler):
+    def do_GET(self):
+        self.send_response(200)
+        self.send_header("Content-type", "text/plain")
+        self.end_headers()
+        self.wfile.write(b"Bot ishlayapti!")
+
+    def log_message(self, format, *args):
+        return  # Loglarni ortiqcha yozuvlar bilan to'ldirmaslik uchun
+
+def run_health_server():
+    port = int(os.environ.get("PORT", 10000))
+    server = HTTPServer(("0.0.0.0", port), HealthCheckHandler)
+    logger.info(f"Render health-check serveri {port}-portda ishga tushdi.")
+    server.serve_forever()
+# -----------------------------------------------------------------
 
 
 def _chunk(items, size):
@@ -304,7 +323,11 @@ def main() -> None:
     if not token:
         raise RuntimeError("Bot tokeni topilmadi.")
 
-    # Ortiqcha port ochadigan health server olib tashlandi
+    # 1. Render talab qilayotgan portni alohida oqimda (Thread) ochamiz
+    server_thread = threading.Thread(target=run_health_server, daemon=True)
+    server_thread.start()
+
+    # 2. Telegram botni standart polling usulida boshlaymiz
     application = Application.builder().token(token).build()
 
     application.add_handler(CommandHandler("start", start))
