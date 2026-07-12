@@ -2,15 +2,6 @@
 """
 Minecraft Modlari Telegram Boti
 --------------------------------
-- Pastki (Reply) tugmalar orqali kategoriya va modlarni ko'rsatadi.
-- Har bir mod ma'lumotini ko'rish uchun MOD_PRICE (5000 so'm) balansdan yechiladi.
-- Admin (ADMIN_ID) uchun hamma narsa bepul.
-- Hisobni to'ldirish: foydalanuvchi summa kiritadi -> adminga so'rov boradi
-  -> admin Tasdiqlash/Rad etish tugmalari orqali javob beradi.
-
-Ishga tushirish:
-    1. pip install -r requirements.txt
-    2. python bot.py
 """
 
 import os
@@ -33,9 +24,9 @@ from telegram.ext import (
     filters,
 )
 
+# Loyihangizdagi kerakli modullar
 from mods_data import MODS
 import balances
-from health_server import start_health_server
 
 logging.basicConfig(
     format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
@@ -43,7 +34,7 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-# ⚠️ Diqqat: tokenni to'g'ridan-to'g'ri kodga yozish xavfsiz emas.
+# Siz yuborgan logdagi eski token:
 DEFAULT_BOT_TOKEN = "8925751397:AAE0hdfPDERIdZl0gnVwKN2jNaYpX7G3d2E"
 
 ADMIN_ID = 8642218989
@@ -57,7 +48,6 @@ TOPUP_BUTTON = "➕ Hisobni to'ldirish"
 MAIN_MENU_CHUNK = 1
 MOD_LIST_CHUNK = 2
 
-# So'ralgan, hali admin tasdiqlamagan to'ldirish so'rovlari: {request_id: (user_id, amount)}
 PENDING_TOPUPS: dict = {}
 
 
@@ -314,8 +304,7 @@ def main() -> None:
     if not token:
         raise RuntimeError("Bot tokeni topilmadi.")
 
-    start_health_server()
-
+    # Ortiqcha port ochadigan health server olib tashlandi
     application = Application.builder().token(token).build()
 
     application.add_handler(CommandHandler("start", start))
@@ -323,7 +312,7 @@ def main() -> None:
     application.add_handler(CallbackQueryHandler(admin_callback_handler))
     application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, text_handler))
 
-    logger.info("Bot ishga tushdi...")
+    logger.info("Bot ishga tushmoqda...")
     application.run_polling(allowed_updates=Update.ALL_TYPES)
 
 
